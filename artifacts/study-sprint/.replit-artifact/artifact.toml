@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "StudySprint"
+version = "1.0.0"
+id = "artifacts/study-sprint"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24618
+
+[services.development]
+run = "pnpm --filter @workspace/study-sprint run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/study-sprint", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/study-sprint/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24618"
+BASE_PATH = "/"

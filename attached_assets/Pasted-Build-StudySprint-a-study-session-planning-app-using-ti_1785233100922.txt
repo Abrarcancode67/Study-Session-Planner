@@ -1,0 +1,131 @@
+Build "StudySprint" — a study-session planning app using timed sprints instead of to-do lists.
+
+STACK
+Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, Framer Motion.
+
+STYLE
+Dark mode, glassmorphism, blue-cyan gradients, premium SaaS look, fully responsive.
+
+DATA MODEL & PERSISTENCE
+No auth. All data (subjects, planned sprints, sprint history, streak state, achievements) 
+lives in React Context + localStorage via a single useStudyStore hook.
+- The app starts completely empty. No seeded/demo data anywhere — Dashboard, Sprint Planner, 
+  History, and Achievements all start at zero/empty state until the user creates real data.
+- Hydration: do not read localStorage during initial render. Use an isHydrated flag set 
+  inside useEffect; render a loading skeleton until it's true, to avoid Next.js SSR 
+  hydration mismatches.
+
+EXACT ENTITY DEFINITIONS
+- Subject: user-created, free-text name (e.g. "Calculus"), no presets, no limit on count.
+- Sprint (planned): { subject, topic (free text), duration in minutes (user input, must be 
+  a positive integer, min 1, max 180), priority: Low / Medium / High (a label only — it 
+  does NOT auto-reorder the user's manual sequence; it's used purely for a color-coded tag 
+  and as a sort option the user can optionally apply) }.
+- Sprint (completed): a planned sprint that has FINISHED (not skipped), with actual time 
+  spent recorded, completion timestamp, and subject/topic/duration copied over.
+- Skipped sprint: recorded separately from completed sprints. Skipped sprints do NOT count 
+  toward total study hours, streak, or Achievements — they only appear in History as "Skipped" 
+  entries for the user's own reference.
+
+PAGES
+
+1. Landing (app/page.tsx)
+   Hero: "Study Smarter. Finish Faster." — subtext, "Start Sprint" button (routes to 
+   /planner), 3-4 feature cards, animated gradient background.
+
+2. Dashboard (app/dashboard/page.tsx)
+   - "Today's study plan": list of sprints planned for today only (based on device local date), 
+     empty state message if none exist yet ("No sprints planned for today — build one now").
+   - Total study hours: sum of ALL completed (not skipped) sprint durations, all-time, shown 
+     in hours with one decimal (e.g. "12.5 hrs").
+   - Current streak: see STREAK LOGIC below.
+   - Weekly progress chart (recharts line/bar): hours studied per day, Monday–Sunday, resets 
+     to a new empty week every Monday (local device time). Wrap in 
+     <ResponsiveContainer width="100%" height={300}>.
+
+3. Sprint Planner (app/planner/page.tsx)
+   - Form to add a sprint: Subject (dropdown of existing subjects + "add new subject" 
+     option), Topic (free text, required), Duration (number input, minutes, 1-180, required), 
+     Priority (Low/Medium/High select, defaults to Medium).
+   - Validation: cannot add a sprint with empty subject, empty topic, or duration outside 
+     1-180. Show inline error, disable "Add" button until valid.
+   - Planned sprints display as a reorderable list using @dnd-kit/core (drag handles, smooth 
+     reorder animation). This manual order is the execution order.
+   - "Start Sprint" button: begins the FIRST sprint in the ordered list in Focus Mode. If 
+     the list is empty, button is disabled with a tooltip "Add a sprint first."
+
+4. Focus Mode (app/focus/page.tsx)
+   - Triggered only from Planner's "Start Sprint," never directly navigable with no active 
+     sprint (if a user lands here with nothing queued, redirect to /planner).
+   - Large countdown timer (MM:SS) + circular progress ring showing % of the sprint elapsed.
+   - Timer state (start timestamp, total duration, paused-at timestamp if paused) is written 
+     to localStorage on every state change, so a refresh or accidental navigation away and 
+     back recalculates the correct remaining time from the stored start timestamp — it does 
+     NOT reset to full duration.
+   - Controls: Pause/Resume (stops/restarts the countdown, does not affect completion 
+     status), Skip (ends this sprint early, logs it as "Skipped," immediately advances to 
+     the next queued sprint or returns to Dashboard if none remain), Finish (only enabled 
+     once the timer reaches 0:00 — logs the sprint as "Completed" with full planned duration, 
+     updates total hours/streak, then auto-advances to the next queued sprint, or shows a 
+     "Sprint Session Complete" summary screen with a button back to Dashboard if the queue 
+     is empty).
+   - On timer reaching 0:00 automatically: play a short notification sound (if browser 
+     allows) and show a "Time's up!" state prompting the user to hit Finish.
+   - Rotate a static (non-repeating within one sprint) motivational quote from a small local 
+     array — shown once per sprint, not changing every second.
+
+5. History (app/history/page.tsx)
+   - Calendar view (month grid): each day shows a dot/count of completed sprints that day. 
+     Clicking a day filters the list below to that day's sprints (completed and skipped, 
+     clearly labeled which is which).
+   - Total hours: same all-time completed-only total as Dashboard.
+   - Subject statistics: total completed hours per subject, shown as a horizontal bar list, 
+     sorted descending.
+   - Empty state if no sprints have ever been completed: "Your study history will show up 
+     here once you finish your first sprint."
+
+6. Achievements (app/achievements/page.tsx)
+   Fixed, concrete criteria — no vague "progress levels":
+   - "First Sprint" — complete 1 sprint.
+   - "5 Sprints" — complete 5 sprints total.
+   - "25 Sprints" — complete 25 sprints total.
+   - "10 Hours" — reach 10 total completed hours.
+   - "50 Hours" — reach 50 total completed hours.
+   - "3-Day Streak" — reach a 3-day streak (see STREAK LOGIC).
+   - "7-Day Streak" — reach a 7-day streak.
+   Locked badges shown grayscale with the exact remaining amount needed 
+   (e.g. "3/5 sprints"); unlocked badges show unlock date and a gradient glow, with a 
+   one-time confetti animation the moment they're unlocked.
+
+STREAK LOGIC (exact definition — implement precisely)
+- A "streak day" = at least one sprint was marked Completed (not Skipped) on that calendar 
+  date (local device time).
+- Current streak = count of consecutive streak days ending on today OR yesterday (so 
+  finishing a sprint today keeps a streak alive even if today isn't over yet; if the most 
+  recent streak day is more than 1 calendar day in the past, the streak has been broken and 
+  displays as 0).
+- Streak recalculates from the full completed-sprint history on every load — do not store 
+  streak as a separately-incremented counter that can drift out of sync with actual history.
+
+FEATURES
+Framer Motion transitions on all page changes and list reordering, dark mode only 
+(no light mode toggle needed), fully responsive down to 375px width, no demo/placeholder 
+data anywhere in the app.
+
+FOLDER STRUCTURE
+app/
+  page.tsx                  — Landing
+  dashboard/page.tsx        — Dashboard
+  planner/page.tsx          — Sprint Planner
+  focus/page.tsx            — Focus Mode
+  history/page.tsx          — History
+  achievements/page.tsx     — Achievements
+context/
+  StudyContext.tsx          — React Context + useStudyStore hook
+lib/
+  streak.ts                 — Streak calculation (pure function, recomputed from history)
+  achievements.ts           — Achievement criteria + unlock-check logic
+components/
+  ui/                       — shadcn/ui components
+  Navbar.tsx                — Glassmorphism header/nav
+  FocusTimer.tsx            — Countdown + progress ring component
